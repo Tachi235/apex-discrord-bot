@@ -40,8 +40,10 @@ def format_to_korean_relative_time(date_str):
         utc_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         kst_dt = utc_dt + timedelta(hours=9)
         
-        # 현재 한국 시간 기준
-        now_kst = datetime.now() + timedelta(hours=9)
+        # 현재 한국 시간 기준 (서버 시간 무관하게 계산)
+        now_utc = datetime.utcnow()
+        now_kst = now_utc + timedelta(hours=9)
+        
         day_str = "오늘" if kst_dt.date() == now_kst.date() else "내일"
         
         ampm = "오전" if kst_dt.hour < 12 else "오후"
@@ -70,34 +72,22 @@ def get_rank_full_data():
     except:
         return None
 
-# 3. 상태창 및 명령어
-@tasks.loop(minutes=30)
-async def update_status():
-    data = get_rank_full_data()
-    if data:
-        activity = discord.Game(name=f"랭크: {data['c_map']} ➜ {data['n_map']}")
-        await bot.change_presence(status=discord.Status.online, activity=activity)
-
-@bot.event
-async def on_ready():
-    if not update_status.is_running():
-        update_status.start()
-
+# 3. 명령어 (순서 강제 조정)
 @bot.command(name="랭크")
 async def rank_cmd(ctx):
     data = get_rank_full_data()
     if data:
         embed = discord.Embed(title="배틀로얄 | 랭크 로테이션", color=0x9b59b6)
         
-        # 1. 상단: 현재 맵 정보 (2칸 차지)
+        # [1단계] 현재 맵과 남은 시간 추가 (상단)
         embed.add_field(name="현재 맵", value=f"```\n{data['c_map']}\n```", inline=True)
         embed.add_field(name="남은 시간", value=f"```\n{data['rem']}\n```", inline=True)
         
-        # 2. 중앙: 이미지
+        # [2단계] 이미지 설정 (중앙)
         if data['img']:
             embed.set_image(url=data['img'])
         
-        # 3. 하단: 다음 맵과 시작 시간을 나란히 (이미지 아래에 배치)
+        # [3단계] 다음 맵과 시작 시간 추가 (이미지 아래에 강제로 나란히 배치)
         embed.add_field(name="다음 맵", value=f"```\n{data['n_map']}\n```", inline=True)
         embed.add_field(name="시작 시간", value=f"```\n{data['next_start']}\n```", inline=True)
         
