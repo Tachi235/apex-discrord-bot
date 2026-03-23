@@ -34,16 +34,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 한국 시간으로 변환 및 "오늘/내일" 판별 함수
+# 한국 시간 변환 및 상대 날짜 표시 함수
 def format_to_korean_relative_time(date_str):
     try:
-        # API 시간(UTC)을 파이썬 시간 객체로 변환
         utc_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-        # 한국 시간으로 변환 (UTC + 9시간)
         kst_dt = utc_dt + timedelta(hours=9)
         
-        # 현재 한국 시간 기준 오늘/내일 판단
-        now_kst = datetime.now() + timedelta(hours=9) # 서버 환경에 따라 조정
+        # 현재 한국 시간 기준
+        now_kst = datetime.now() + timedelta(hours=9)
         day_str = "오늘" if kst_dt.date() == now_kst.date() else "내일"
         
         ampm = "오전" if kst_dt.hour < 12 else "오후"
@@ -91,15 +89,15 @@ async def rank_cmd(ctx):
     if data:
         embed = discord.Embed(title="배틀로얄 | 랭크 로테이션", color=0x9b59b6)
         
-        # 1층: 현재 정보
+        # 1. 상단: 현재 맵 정보 (2칸 차지)
         embed.add_field(name="현재 맵", value=f"```\n{data['c_map']}\n```", inline=True)
         embed.add_field(name="남은 시간", value=f"```\n{data['rem']}\n```", inline=True)
         
-        # 이미지
+        # 2. 중앙: 이미지
         if data['img']:
             embed.set_image(url=data['img'])
         
-        # 2층: 다음 정보 (한 줄에 나란히 배치)
+        # 3. 하단: 다음 맵과 시작 시간을 나란히 (이미지 아래에 배치)
         embed.add_field(name="다음 맵", value=f"```\n{data['n_map']}\n```", inline=True)
         embed.add_field(name="시작 시간", value=f"```\n{data['next_start']}\n```", inline=True)
         
