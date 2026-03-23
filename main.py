@@ -34,18 +34,13 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 한국 시간 변환 및 상대 날짜 표시 함수
 def format_to_korean_relative_time(date_str):
     try:
         utc_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         kst_dt = utc_dt + timedelta(hours=9)
-        
-        # 현재 한국 시간 기준 (서버 시간 무관하게 계산)
-        now_utc = datetime.utcnow()
-        now_kst = now_utc + timedelta(hours=9)
+        now_kst = datetime.utcnow() + timedelta(hours=9)
         
         day_str = "오늘" if kst_dt.date() == now_kst.date() else "내일"
-        
         ampm = "오전" if kst_dt.hour < 12 else "오후"
         hour = kst_dt.hour if kst_dt.hour <= 12 else kst_dt.hour - 12
         if hour == 0: hour = 12
@@ -72,22 +67,25 @@ def get_rank_full_data():
     except:
         return None
 
-# 3. 명령어 (순서 강제 조정)
+# 3. 명령어 (줄바꿈 로직 수정)
 @bot.command(name="랭크")
 async def rank_cmd(ctx):
     data = get_rank_full_data()
     if data:
         embed = discord.Embed(title="배틀로얄 | 랭크 로테이션", color=0x9b59b6)
         
-        # [1단계] 현재 맵과 남은 시간 추가 (상단)
+        # [상단] 현재 정보 (2개만 배치하여 줄바꿈 유도)
         embed.add_field(name="현재 맵", value=f"```\n{data['c_map']}\n```", inline=True)
         embed.add_field(name="남은 시간", value=f"```\n{data['rem']}\n```", inline=True)
         
-        # [2단계] 이미지 설정 (중앙)
+        # [중요] 강제 줄바꿈용 필드 (이미지 전용 공간 확보)
+        embed.add_field(name="\u200b", value="\u200b", inline=False) 
+        
+        # [중앙] 이미지
         if data['img']:
             embed.set_image(url=data['img'])
         
-        # [3단계] 다음 맵과 시작 시간 추가 (이미지 아래에 강제로 나란히 배치)
+        # [하단] 다음 정보 (이미지 아래에 확실하게 배치)
         embed.add_field(name="다음 맵", value=f"```\n{data['n_map']}\n```", inline=True)
         embed.add_field(name="시작 시간", value=f"```\n{data['next_start']}\n```", inline=True)
         
