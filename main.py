@@ -1,92 +1,68 @@
 import discord
-from discord.ext import tasks, commands
+from discord.ext import commands, tasks
 import requests
-from flask import Flask
-from threading import Thread
 import os
 
-# 1. 웹 서버 설정 (Koyeb 유지용)
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "✅ ApexBot is Running!"
-
-def run():
-    # Koyeb은 기본적으로 8080 포트를 사용하거나 환경 변수로 포트를 지정합니다.
-    port = int(os.environ.get("PORT", 8081))
-    app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
-
-# 2. 봇 기본 설정
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-# 사용자 정보 (기존 키와 토큰 그대로 유지)
-APEX_API_KEY = os.environ.get("APEX_API_KEY")
+# 1. 설정 (Koyeb 환경 변수)
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
+APEX_API_KEY = os.environ.get("APEX_API_KEY")
 
-# 맵 이름 한글 변환
-KOR_MAPS = {
-    "World's Edge": "세상의 끝", "Olympus": "올림푸스", "Kings Canyon": "킹스 캐년",
-    "Storm Point": "스톰 포인트", "Broken Moon": "브로큰 문", "District": "디스트릭트"
+# 맵 이름 한글 변환 사전
+MAP_NAMES = {
+    "World's Edge": "세상의 끝",
+    "Storm Point": "스톰 포인트",
+    "Broken Moon": "브로큰 문",
+    "Kings Canyon": "킹스 캐년",
+    "Olympus": "올림푸스",
+    "District": "디스트릭트",
+    "E-District": "E-디스트릭트"
 }
 
-def to_kor(name):
-    return KOR_MAPS.get(name, name)
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 3. 상태창 업데이트 (12시간마다 1번 실행하여 할당량 보호)
-@tasks.loop(hours=12)
-async def update_presence():
+# 2. 랭크 맵 정보를 가져오는 함수
+def get_ranked_map():
     try:
         url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}"
         res = requests.get(url).json()
-        rank = res.get('ranked') or res.get('ranked_battle_royale')
-        if rank:
-            m = to_kor(rank['current']['map'])
-            await bot.change_presence(activity=discord.Game(name=f"랭크 맵: {m}"))
-    except:
-        pass
+        ranked_info = res.get('ranked', {}).get('current', {})
+        
+        eng_map = ranked_info.get('map', '정보 없음')
+        # 사전에 있으면 한글로, 없으면 영어 그대로 표시
+        kor_map = MAP_NAMES.get(eng_map, eng_map)
+        
+        remaining = ranked_info.get('remainingTimer', '??:??')
+        return kor_map, remaining
+    except Exception as e:
+        print(f"API Error: {e}")
+        return None, None
 
+# 3. 상태창 자동 업데이트 루프 (6시간마다 실행)
+@tasks.loop(hours=6)
+async def update_presence():
+    kor_map, _ = get_ranked_map()
+    if kor_map and kor_map != '정보 없음':
+        # 상태창에 "랭크 맵: [한글맵이름]" 표시
+        await bot.change_presence(activity=discord.Game(name=f"랭크 맵: {kor_map}"))
+    else:
+        await bot.change_presence(activity=discord.Game(name="맵 정보 확인 불가"))
+
+# 4. 봇 준비 완료 시 실행
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user.name} 로그인 성공!")
     if not update_presence.is_running():
         update_presence.start()
 
-# 4. !랭크 명령어
+# 5. !랭크 명령어 (수동 확인용)
 @bot.command(name="랭크")
 async def rank_info(ctx):
-    try:
-        url = f"https://api.mozambiquehe.re/maprotation?auth={APEX_API_KEY}"
-        data = requests.get(url).json()
-        
-        # API 에러 체크
-        if "Error" in data or "error" in data:
-            await ctx.send("⚠️ API 할당량이 초과되었거나 오류가 발생했습니다.")
-            return
+    kor_map, remaining = get_ranked_map()
+    if kor_map and kor_map != '정보 없음':
+        await ctx.send(f"🏆 **현재 랭크 맵**: {kor_map}\n⏰ **다음 로테이션까지**: {remaining}")
+    else:
+        await ctx.send("❌ 랭크 정보를 불러올 수 없습니다. API 설정을 확인하세요.")
 
-        rank = data.get('ranked') or data.get('ranked_battle_royale')
-        if rank:
-            curr = to_kor(rank['current']['map'])
-            rem = rank['current']['remainingTimer']
-            next_m = to_kor(rank['next']['map'])
-            
-            embed = discord.Embed(title="🏆 Apex 랭크 맵 정보", color=discord.Color.gold())
-            embed.add_field(name="📍 현재 맵", value=f"**{curr}**", inline=False)
-            embed.add_field(name="⏰ 남은 시간", value=f"`{rem}`", inline=True)
-            embed.add_field(name="➡️ 다음 맵", value=next_m, inline=True)
-            await ctx.send(embed=embed)
-        else:
-            await ctx.send("❌ 랭크 데이터를 찾을 수 없습니다.")
-    except:
-        await ctx.send("❌ 서버 연결 오류가 발생했습니다.")
-
-if __name__ == "__main__":
-    keep_alive()
-    bot.run(DISCORD_TOKEN)
+bot.run(DISCORD_TOKEN)
