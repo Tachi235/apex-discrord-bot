@@ -28,8 +28,8 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # 사용자 정보 (기존 키와 토큰 그대로 유지)
-APEX_API_KEY = "6f5742b0107d506d63727c0e4ce0d06e"
-DISCORD_TOKEN = "MTQ4NTI4ODA0NzM1MTE3MzIyMQ.GFhaN0.lUVkpxbL7nBkk6Qvy1pfTZjC99PxxoevrMWhAI"
+APEX_API_KEY = os.environ.get("APEX_API_KEY")
+DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 
 # 맵 이름 한글 변환
 KOR_MAPS = {
