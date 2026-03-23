@@ -6,10 +6,10 @@ from flask import Flask
 from threading import Thread
 from datetime import datetime, timedelta
 
-# 1. Koyeb 서버 유지용
+# 1. Koyeb 유지용
 app = Flask('')
 @app.route('/')
-def home(): return "✅ Apex Rank Bot Online!"
+def home(): return "✅ Bot is Online!"
 
 def run():
     port = int(os.environ.get("PORT", 8000))
@@ -20,7 +20,7 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# 2. 봇 설정
+# 2. 설정
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 APEX_API_KEY = os.environ.get("APEX_API_KEY")
 
@@ -34,18 +34,13 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 한국 시간 변환 및 상대 날짜 표시 함수
 def format_to_korean_relative_time(date_str):
     try:
         utc_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
         kst_dt = utc_dt + timedelta(hours=9)
-        
-        # 현재 한국 시간 기준
-        now_utc = datetime.utcnow()
-        now_kst = now_utc + timedelta(hours=9)
+        now_kst = datetime.utcnow() + timedelta(hours=9)
         
         day_str = "오늘" if kst_dt.date() == now_kst.date() else "내일"
-        
         ampm = "오전" if kst_dt.hour < 12 else "오후"
         hour = kst_dt.hour if kst_dt.hour <= 12 else kst_dt.hour - 12
         if hour == 0: hour = 12
@@ -72,29 +67,26 @@ def get_rank_full_data():
     except:
         return None
 
-# 3. 명령어 (순서 및 줄바꿈 강제 조정)
+# 4. !랭크 명령어 (네시 봇 레이아웃 완벽 재현)
 @bot.command(name="랭크")
 async def rank_cmd(ctx):
     data = get_rank_full_data()
     if data:
-        embed = discord.Embed(title="배틀로얄 | 랭크 로테이션", color=0x9b59b6)
+        # 네시 봇과 같은 제목과 보라색
+        embed = discord.Embed(title="Battle Royale | Ranked", color=0x9b59b6)
         
-        # [1단계] 현재 맵과 남은 시간 (상단)
-        embed.add_field(name="현재 맵", value=f"```\n{data['c_map']}\n```", inline=True)
-        embed.add_field(name="남은 시간", value=f"```\n{data['rem']}\n```", inline=True)
+        # [상단] 현재 맵과 남은 시간 (두 개만 딱 배치)
+        embed.add_field(name="Current map", value=f"```\n{data['c_map']}\n```", inline=True)
+        embed.add_field(name="Time left", value=f"```\n{data['rem']}\n```", inline=True)
         
-        # [2단계] 강제 줄바꿈 필드 (다음 정보가 상단으로 올라오는 것 방지)
-        embed.add_field(name="\u200b", value="\u200b", inline=False) 
-        
-        # [3단계] 이미지 설정 (중앙)
+        # [중앙] 이미지 (이미지가 필드 아래에 오도록 설정)
         if data['img']:
             embed.set_image(url=data['img'])
         
-        # [4단계] 다음 맵과 시작 시간 (이미지 아래에 배치)
-        embed.add_field(name="다음 맵", value=f"```\n{data['n_map']}\n```", inline=True)
-        embed.add_field(name="시작 시간", value=f"```\n{data['next_start']}\n```", inline=True)
+        # [하단] 다음 맵 정보를 Footer(바닥글)에 넣어서 이미지 아래로 강제 고정
+        # 네시 봇의 "Next Map: 세상의 끝 • 내일 오전 3:00" 형식 재현
+        embed.set_footer(text=f"Next Map: {data['n_map']} • {data['next_start']}")
         
-        embed.set_footer(text="Apex Legends Rank Rotation Updates")
         await ctx.send(embed=embed)
 
 if __name__ == "__main__":
