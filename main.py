@@ -2,8 +2,27 @@ import discord
 from discord.ext import commands, tasks
 import requests
 import os
+from flask import Flask
+from threading import Thread
 
-# 1. 설정
+# [추가] Koyeb Health Check를 위한 웹 서버 설정
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run():
+    # Koyeb이 사용할 포트를 8000으로 설정합니다.
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.daemon = True
+    t.start()
+
+# 봇 설정 부분
 DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN")
 APEX_API_KEY = os.environ.get("APEX_API_KEY")
 
@@ -21,33 +40,23 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 2. 랭크 맵 정보 함수 (주소에 version=2 추가)
 def get_ranked_map():
     try:
-        # 주소 끝에 &version=2를 반드시 붙여야 합니다.
         url = f"https://api.mozambiquehe.re/maprotation?version=2&auth={APEX_API_KEY}"
         res = requests.get(url).json()
-        
-        # version=2를 쓰면 데이터 구조가 ranked -> current -> map 순서가 됩니다.
         ranked_info = res.get('ranked', {}).get('current', {})
-        
         eng_map = ranked_info.get('map', '정보 없음')
         kor_map = MAP_NAMES.get(eng_map, eng_map)
-        
         remaining = ranked_info.get('remainingTimer', '??:??')
         return kor_map, remaining
-    except Exception as e:
-        print(f"API Error: {e}")
+    except:
         return None, None
 
-# 3. 상태창 루프 (6시간마다)
 @tasks.loop(hours=6)
 async def update_presence():
     kor_map, _ = get_ranked_map()
     if kor_map and kor_map != '정보 없음':
         await bot.change_presence(activity=discord.Game(name=f"랭크 맵: {kor_map}"))
-    else:
-        await bot.change_presence(activity=discord.Game(name="맵 정보 확인 불가"))
 
 @bot.event
 async def on_ready():
@@ -61,6 +70,9 @@ async def rank_info(ctx):
     if kor_map and kor_map != '정보 없음':
         await ctx.send(f"🏆 **현재 랭크 맵**: {kor_map}\n⏰ **다음 로테이션까지**: {remaining}")
     else:
-        await ctx.send("❌ 랭크 정보를 불러올 수 없습니다. API 주소를 확인하세요.")
+        await ctx.send("❌ 정보를 불러올 수 없습니다.")
 
-bot.run(DISCORD_TOKEN)
+# [수정] 실행 부분에 웹 서버 시작 추가
+if __name__ == "__main__":
+    keep_alive()  # 웹 서버를 먼저 띄우고
+    bot.run(DISCORD_TOKEN) # 봇을 실행합니다.
