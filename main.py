@@ -33,7 +33,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# API 데이터를 가져오는 통합 함수
 def get_rank_data():
     try:
         url = f"https://api.mozambiquehe.re/maprotation?version=2&auth={APEX_API_KEY}"
@@ -46,16 +45,15 @@ def get_rank_data():
         n_map = MAP_NAMES.get(next_data.get('map'), next_data.get('map'))
         rem = current.get('remainingTimer', '00:00:00')
         return c_map, n_map, rem
-    except Exception as e:
-        print(f"API Error: {e}")
+    except:
         return None, None, None
 
-# 3. 상태창 업데이트 (주기를 30분으로 늘려 API 절약)
+# 3. 상태창 업데이트 (30분 주기 - API 절약)
 @tasks.loop(minutes=30)
 async def update_status():
     curr, nxt, _ = get_rank_data()
     if curr:
-        # 봇 상태창에 "랭크: 현재맵 ➜ 다음맵" 표시
+        # 상태창: 랭크: 현재맵 ➜ 다음맵
         activity = discord.Game(name=f"랭크: {curr} ➜ {nxt}")
         await bot.change_presence(status=discord.Status.online, activity=activity)
 
@@ -65,19 +63,21 @@ async def on_ready():
     if not update_status.is_running():
         update_status.start()
 
-# 4. !랭크 명령어 (정렬 및 디자인 개선)
+# 4. !랭크 명령어 (이모지 제거 및 정렬 수정)
 @bot.command(name="랭크")
 async def rank_cmd(ctx):
     curr, nxt, rem = get_rank_data()
     if curr:
         embed = discord.Embed(title="🏆 현재 랭크 로테이션", color=0xff4444)
         
-        # 필드 이름을 비워서( \u200b ) 맵 이름들을 가로로 예쁘게 정렬 시도
-        embed.add_field(name="📍 현재 랭크 맵", value=f"**{curr}**", inline=True)
-        embed.add_field(name=" \u200b", value=" \u200b ", inline=True) # 중간 공백 칸
-        embed.add_field(name="➡️ 다음 랭크 맵", value=f"**{nxt}**", inline=True)
+        # 이모지를 빼고 현재맵과 다음맵 제목을 정렬
+        embed.add_field(name="현재 랭크 맵", value=f"**{curr}**", inline=True)
+        # 중간에 빈 칸을 넣어 다음 맵 제목과 위치를 맞춤
+        embed.add_field(name="\u200b", value="\u200b", inline=True) 
+        embed.add_field(name="다음 랭크 맵", value=f"**{nxt}**", inline=True)
         
-        embed.add_field(name="⏰ 다음 교체까지", value=f"`{rem}`", inline=False)
+        # 교체 시간 이모지 제거
+        embed.add_field(name="다음 교체까지", value=f"`{rem}`", inline=False)
         
         await ctx.send(embed=embed)
     else:
