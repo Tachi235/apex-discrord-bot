@@ -6,12 +6,15 @@ from flask import Flask
 from threading import Thread
 from datetime import datetime, timedelta
 
-# 1. Koyeb 유지용 (웹 서버)
+# 1. Koyeb 생존 확인용 웹 서버 (가장 중요!)
 app = Flask('')
+
 @app.route('/')
-def home(): return "✅ Apex Rank Bot is Online!"
+def home():
+    return "✅ Apex Rank Bot is Online and Healthy!"
 
 def run():
+    # 코옙은 PORT 환경 변수를 통해 포트를 지정합니다.
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
 
@@ -31,7 +34,8 @@ MAP_NAMES = {
 }
 
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True 
+intents.presences = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def format_to_korean_relative_time(date_str):
@@ -61,25 +65,26 @@ def get_rank_full_data():
             "img": current.get('asset'),
             "next_start": format_to_korean_relative_time(next_data.get('readableDate_start', ''))
         }
-    except:
+    except Exception as e:
+        print(f"API Error: {e}")
         return None
 
-# --- 🟢 추가된 부분: 상태창 자동 업데이트 ---
+# 상태창 루프
 @tasks.loop(minutes=30)
 async def update_status():
-    data = get_rank_full_data()
-    if data:
-        # 상태창 예시: "랭크: 세상의 끝 ➜ 스톰 포인트"
-        status_text = f"랭크: {data['c_map']} ➜ {data['n_map']}"
-        await bot.change_presence(activity=discord.Game(name=status_text))
+    try:
+        data = get_rank_full_data()
+        if data:
+            status_text = f"랭크: {data['c_map']} ➜ {data['n_map']}"
+            await bot.change_presence(activity=discord.Game(name=status_text))
+    except Exception as e:
+        print(f"Status Update Error: {e}")
 
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user.name} 로그인 성공!")
-    # 봇이 켜질 때 루프 시작
     if not update_status.is_running():
         update_status.start()
-# ------------------------------------------
 
 @bot.command(name="랭크")
 async def rank_cmd(ctx):
@@ -88,13 +93,17 @@ async def rank_cmd(ctx):
         embed = discord.Embed(title="배틀로얄 | 랭크 로테이션", color=0x9b59b6)
         embed.add_field(name="현재 맵", value=f"```\n{data['c_map']}\n```", inline=True)
         embed.add_field(name="남은 시간", value=f"```\n{data['rem']}\n```", inline=True)
-        
         if data['img']:
             embed.set_image(url=data['img'])
-        
         embed.set_footer(text=f"다음 맵: {data['n_map']} • {data['next_start']}")
         await ctx.send(embed=embed)
+    else:
+        await ctx.send("❌ 정보를 가져오는 데 실패했습니다.")
 
 if __name__ == "__main__":
+    # 봇 시작 전 웹 서버를 먼저 띄웁니다.
     keep_alive()
-    bot.run(DISCORD_TOKEN)
+    try:
+        bot.run(DISCORD_TOKEN)
+    except Exception as e:
+        print(f"Bot 실행 에러: {e}")
